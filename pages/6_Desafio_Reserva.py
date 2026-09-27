@@ -4,7 +4,7 @@ import psycopg2
 import streamlit as st
 
 st.set_page_config(
-    page_title="Desafio Reserva & Simulador",
+    page_title="Desafio Reserva & Simulador - Daniel",
     page_icon="🎯",
     layout="wide",
 )
@@ -44,7 +44,7 @@ def garantir_tabelas():
 
 garantir_tabelas()
 
-st.title("💰 Controle Financeiro — Painel")
+st.title("💰 Controle Financeiro — Painel do Daniel")
 st.subheader("🎯 Desafio Personalizado, Resgates & Simulador de Antecipação")
 st.write(
     "Controle seus aportes mensais cumulativos, gerencie resgates, diversifique suas instituições "
