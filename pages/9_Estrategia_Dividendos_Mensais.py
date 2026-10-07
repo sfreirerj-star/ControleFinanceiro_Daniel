@@ -1,12 +1,19 @@
+from datetime import datetime
 import pandas as pd
+import streamlit as st
 from utils import aplicar_estilo_moderno
 
-# 1. Configuração da Página e Aplicação do Estilo DEVEM ser chamadas juntas no topo
+# 1. st.set_page_config DEVE SER A PRIMEIRA LINHA EXECUTÁVEL
 st.set_page_config(
-    page_title="Controle Financeiro - Daniel", page_icon="💰", layout="wide"
+    page_title="Estratégia de Dividendos Mensais - Painel do Daniel",
+    page_icon="📈",
+    layout="wide",
 )
-aplicar_estilo_moderno()  # <-- Essencial logo após o set_page_config
 
+# 2. Logo em seguida, aplique o estilo do utils
+aplicar_estilo_moderno()
+
+# A partir daqui, continue com o restante do código da sua página...
 st.set_page_config(
     page_title="Estratégia de Dividendos em Dólar - Painel do Daniel",
     page_icon="💵",
