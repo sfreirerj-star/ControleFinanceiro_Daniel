@@ -1,13 +1,16 @@
 from datetime import datetime
 import pandas as pd
+import plotly.express as px
 import psycopg2
 import streamlit as st
+from utils import aplicar_estilo_moderno
 
 st.set_page_config(
     page_title="Desafio Reserva & Simulador - Daniel",
     page_icon="🎯",
     layout="wide",
 )
+aplicar_estilo_moderno()  # <-- Essencial para aplicar o estilo moderno na página
 
 
 def obter_conexao():
@@ -342,7 +345,7 @@ with aba_desafio:
 
     st.divider()
 
-    # --- SEÇÃO DE COMPARAÇÃO / EVOLUÇÃO MÊS A MÊS (GRÁFICO DE BARRAS) ---
+    # --- SEÇÃO DE COMPARAÇÃO / EVOLUÇÃO MÊS A MÊS ---
     st.markdown("### 📊 Comparação de Aportes por Mês (Evolução Histórica)")
     if not df_aportes.empty:
 

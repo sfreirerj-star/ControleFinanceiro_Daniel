@@ -1,16 +1,22 @@
+from datetime import datetime
 import pandas as pd
 import psycopg2
 import streamlit as st
+from utils import aplicar_estilo_moderno
 
 st.set_page_config(
     page_title="Diagnóstico & Reserva - Painel do Daniel", page_icon="🎯", layout="wide"
 )
+
+# Aplica o estilo moderno padrão do painel
+aplicar_estilo_moderno()
+
 st.title("💰 Controle Financeiro — Painel do Daniel")
 st.header("🎯 Diagnóstico de Gargalos & Estratégia de Reserva")
 st.markdown(
-    "Esta aba analisa os seus lançamentos, simula o impacto da transição de"
-    " moradia em dezembro, a entrada do extra do PROEIS e traça a rota para"
-    " construir sua reserva de segurança."
+    "Esta aba analisa os seus lançamentos, mapeia os principais gargalos de"
+    " despesas e traça a rota para construir sua reserva de segurança com foco"
+    " em autonomia e aprendizado patrimonial."
 )
 
 
@@ -159,89 +165,7 @@ else:
 
     st.divider()
 
-    # ==========================================================
-    # SIMULADOR DE TRANSIÇÃO (DEZEMBRO + PROEIS + CORTES)
-    # ==========================================================
-    st.subheader("🚀 Simulador Estratégico: Cenário Dezembro em Diante")
-    st.markdown(
-        "Simule o impacto da sua mudança para o apartamento próprio (eliminando"
-        " o aluguel) e a injeção do extra do PROEIS na formação da sua reserva."
-    )
-
     df_despesas = df_filtrado[df_filtrado["tipo"].str.lower() == "despesa"]
-    aluguel_atual = 0.0
-    if not df_despesas.empty:
-        aluguel_match = df_despesas[
-            df_despesas["categoria"].str.contains("Aluguel", case=False, na=False)
-        ]
-        if not aluguel_match.empty:
-            aluguel_atual = aluguel_match["valor"].sum()
-
-    col_tr1, col_tr2 = st.columns(2)
-
-    with col_tr1:
-        st.markdown("#### Premissas da Virada")
-        entregar_aluguel = st.checkbox(
-            "Entregar imóvel alugado em Dezembro (Zera o Aluguel de R$"
-            f" {aluguel_atual:,.2f})",
-            value=True,
-        )
-        incluir_proeis = st.checkbox(
-            "Considerar valor extra do PROEIS (R$ 5.320,00)", value=True
-        )
-
-        valor_proeis = 5320.0 if incluir_proeis else 0.0
-        economia_aluguel = aluguel_atual if entregar_aluguel else 0.0
-
-        nova_despesa_total = despesas_total - economia_aluguel
-        novo_saldo_mensal = receitas_total - nova_despesa_total - total_aportes
-        meta_reserva_futura = (nova_despesa_total / 30) * 180
-
-    with col_tr2:
-        st.markdown("#### 🎯 Projeção de Caixa (A partir de Dezembro)")
-        st.metric(
-            "Nova Despesa Mensal",
-            f"R$ {nova_despesa_total:,.2f}",
-            delta=f"- R$ {economia_aluguel:,.2f} (Aluguel Eliminado)",
-            delta_color="inverse",
-        )
-        st.metric(
-            "Novo Saldo Líquido Mensal",
-            f"R$ {novo_saldo_mensal:,.2f}",
-            delta="Folga real garantida por mês!",
-        )
-        if incluir_proeis:
-            st.success(
-                f"💰 **Injeção PROEIS:** Os R$ {valor_proeis:,.2f} extras entram"
-                f" direto como o **pontapé inicial absoluto** da sua reserva de"
-                f" segurança!"
-            )
-
-    if novo_saldo_mensal > 1.0:
-        quanto_falta = max(
-            0.0, meta_reserva_futura - valor_proeis - total_aportes
-        )
-        meses_reserva = quanto_falta / novo_saldo_mensal
-
-        st.markdown(
-            f"""
-            <div style="padding: 15px; border-radius: 8px; background-color: rgba(0, 150, 255, 0.1); border-left: 5px solid #0096ff; margin-top: 15px;">
-                <b>Previsão de Sucesso:</b> Com a economia gerando <b>R$ {novo_saldo_mensal:,.2f}</b> livres por mês e aplicando o extra do PROEIS logo no início, você atinge a sua meta completa de reserva de segurança (<b>R$ {meta_reserva_futura:,.2f}</b>) em aproximadamente <b>{meses_reserva:.1f} meses</b> após a mudança em dezembro!
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            """
-            <div style="padding: 15px; border-radius: 8px; background-color: rgba(255, 165, 0, 0.1); border-left: 5px solid #ffa500; margin-top: 15px;">
-                <b>Atenção:</b> O saldo mensal projetado está zerado ou negativo. Para calcular o tempo estimado da reserva, marque a opção acima para <b>Entregar o imóvel alugado em Dezembro</b>, liberando assim a folga financeira necessária.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    st.divider()
 
     # Mapeamento de Gargalos Clássico
     st.subheader("🔍 Mapeamento Detalhado de Saídas Atuais")
@@ -267,10 +191,10 @@ else:
 
     st.divider()
 
-    # Plano de Ação Estratégico
-    st.subheader("🛡️ Plano Diretor de Transição Patrimonial")
-    st.markdown(f"""
-    1. **Foco na Data de Dezembro:** Mantenha a disciplina financeira atual até completar o prazo contratual do Quinto Andar. A própria inércia do contrato resolve o problema estrutural do aluguel sem multas rescisórias abusivas.
-    2. **Blindagem do PROEIS (R$ {valor_proeis:,.2f}):** Quando esse valor for creditado, **não o misture com a conta corrente comum**. Destine-o imediatamente para uma aplicação de renda fixa com liquidez diária (criando a fundação da sua reserva).
-    3. **Aproveitamento do Imóvel Próprio:** A mudança para o seu apartamento em dezembro converterá um custo perdido (aluguel a terceiros) em permanência no seu próprio patrimônio, reduzindo drasticamente o escoamento de caixa.
+    # Plano de Ação Estratégico (Focado em autonomia, juventude e aprendizado)
+    st.subheader("🛡️ Diretrizes de Educação e Construção Financeira")
+    st.markdown("""
+    1. **Construção de Hábito Cedo:** Aos 24 anos, cada real guardado e investido com consistência ganha um efeito exponencial do tempo a seu favor. O foco agora é dominar os gastos supérfluos e automatizar os aportes mensais.
+    2. **Blindagem de Ganhos Extras:** Ganhos eventuais ou variáveis (como plantões ou extras profissionais) devem ser tratados como dinheiro voltado exclusivamente para o seu futuro patrimônio, evitando que sejam absorvidos pelo custo de vida corrente.
+    3. **Independência e Flexibilidade:** Mantenha um controle rigoroso sobre os maiores gargalos de despesa identificados acima para garantir que seu dinheiro sirva aos seus objetivos de médio e longo prazo com total tranquilidade.
     """)

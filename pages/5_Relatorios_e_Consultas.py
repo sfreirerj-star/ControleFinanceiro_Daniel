@@ -4,10 +4,14 @@ import urllib.parse
 import pandas as pd
 import psycopg2
 import streamlit as st
+from utils import aplicar_estilo_moderno
 
 st.set_page_config(
     page_title="Relatórios e Consultas - Daniel", page_icon="📈", layout="wide"
 )
+
+# Essencial para garantir a estilização correta e evitar falhas visuais em dispositivos móveis
+aplicar_estilo_moderno()
 
 
 def obter_conexao():
@@ -43,9 +47,7 @@ def configurar_sidebar_competencia():
         df_l["comp_ordem"] = "9999-99"
 
     mapeamento_comps = (
-        df_l[["competencia", "comp_ordem"]]
-        .drop_duplicates()
-        .copy()
+        df_l[["competencia", "comp_ordem"]].drop_duplicates().copy()
     )
     mapeamento_comps = mapeamento_comps[
         mapeamento_comps["competencia"] != "Indefinido"
@@ -127,7 +129,6 @@ if not df_lancamentos.empty:
         "🔮 Projeção de Saldo Futuro",
     ])
 
-
     def fmt_moeda(v):
         return (
             f"R$ {v:,.2f}"
@@ -135,7 +136,6 @@ if not df_lancamentos.empty:
             .replace(".", ",")
             .replace("X", ".")
         )
-
 
     # --- ABA 1: CONSULTA, FILTROS E AÇÕES ---
     with aba1:
@@ -166,7 +166,6 @@ if not df_lancamentos.empty:
         # Aplicação dos filtros (incluindo filtro automático de competência da barra lateral)
         df_filtrado = df_lancamentos.copy()
 
-
         def extrair_mes_ano(data_str):
             try:
                 dt = pd.to_datetime(
@@ -179,7 +178,6 @@ if not df_lancamentos.empty:
             except Exception:
                 pass
             return ""
-
 
         df_filtrado["competencia_mes"] = df_filtrado["data"].apply(
             extrair_mes_ano
