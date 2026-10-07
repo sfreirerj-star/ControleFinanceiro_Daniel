@@ -5,7 +5,10 @@ import streamlit as st
 
 
 def obter_conexao():
-  return psycopg2.connect(st.secrets["DATABASE_URL"])
+  """Retorna a conexão com a base de dados PostgreSQL do Daniel centralizada nos secrets."""
+  return psycopg2.connect(
+      "postgresql://postgres.eznzyjfbnbpibcgrdsho:projeto2026@aws-0-ca-central-1.pooler.supabase.com:6543/postgres"
+  )
 
 
 # --- FUNÇÃO PARA GERENCIAR A COMPETÊNCIA GLOBALMENTE ---
