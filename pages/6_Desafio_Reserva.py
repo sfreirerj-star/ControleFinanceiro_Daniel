@@ -5,6 +5,12 @@ import psycopg2
 import streamlit as st
 from utils import aplicar_estilo_moderno
 
+# 1. Configuração da Página e Aplicação do Estilo DEVEM ser chamadas juntas no topo
+st.set_page_config(
+    page_title="Controle Financeiro - Daniel", page_icon="💰", layout="wide"
+)
+aplicar_estilo_moderno()  # <-- Essencial logo após o set_page_config
+
 st.set_page_config(
     page_title="Desafio Reserva & Simulador - Daniel",
     page_icon="🎯",

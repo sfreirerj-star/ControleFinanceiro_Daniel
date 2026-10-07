@@ -1,11 +1,15 @@
+from datetime import datetime
 import pandas as pd
 import streamlit as st
+from utils import aplicar_estilo_moderno
 
 st.set_page_config(
     page_title="Simulador & Melhores Ações - Painel do Daniel",
     page_icon="📈",
     layout="wide",
 )
+
+aplicar_estilo_moderno()  # <-- Essencial em cada página
 
 st.title("💰 Controle Financeiro — Painel do Daniel")
 st.header("📈 Melhores Ações Globais, Simulador DCA & Inteligência de Mercado")
@@ -88,7 +92,7 @@ st.markdown(
 col_f1, col_f2 = st.columns(2)
 
 with col_f1:
-  st.markdown("""
+    st.markdown("""
     #### 📊 Portais de Dados e Cotações Globais
     * **[TradingView](https://br.tradingview.com/):** Principal ferramenta gráfica do mundo para monitorar ativos e índices (S&P 500, NASDAQ).
     * **[Yahoo Finance](https://finance.yahoo.com/):** Essencial para verificar balanços trimestrais e o *Dividend Yield* histórico.
@@ -96,7 +100,7 @@ with col_f1:
     """)
 
 with col_f2:
-  st.markdown("""
+    st.markdown("""
     #### 🏛️ Indicadores Macroeconômicos (O que move a Bolsa)
     * **Taxa de Juros do FED (FOMC):** O custo do dinheiro nos EUA dita o fluxo de capital para renda fixa e variável.
     * **Índice de Inflação (CPI e PCE):** Medem o ritmo do custo de vida americano e direcionam as políticas do Banco Central.
@@ -142,42 +146,42 @@ st.success(
 col_s1, col_s2 = st.columns(2)
 
 with col_s1:
-  aporte_mensal_usd = st.number_input(
-      "Aporte Mensal Planejado (US$)",
-      min_value=10.0,
-      max_value=5000.0,
-      value=100.0,
-      step=10.0,
-  )
-  meses_projecao = st.slider(
-      "Horizonte de Projeção (Meses)", min_value=12, max_value=120, value=36, step=12
-  )
+    aporte_mensal_usd = st.number_input(
+        "Aporte Mensal Planejado (US$)",
+        min_value=10.0,
+        max_value=5000.0,
+        value=100.0,
+        step=10.0,
+    )
+    meses_projecao = st.slider(
+        "Horizonte de Projeção (Meses)", min_value=12, max_value=120, value=36, step=12
+    )
 
 with col_s2:
-  st.markdown(f"""
+    st.markdown(f"""
     * **Valor do Aporte:** US$ {aporte_mensal_usd:,.2f} por mês.
     * **Estratégia DCA:** Aportes regulares reduzem o impacto da volatilidade cambial e dos ciclos de mercado.
     * **Foco:** Acumulação disciplinada de ativos geradores de fluxo passivo.
     """)
 
 if preco_atual > 0:
-  cotas_por_mes = aporte_mensal_usd / preco_atual
-  total_cotas_acumuladas = cotas_por_mes * meses_projecao
-  renda_anual_projetada = total_cotas_acumuladas * preco_atual * dividend_yield
-  renda_mensal_projetada = renda_anual_projetada / 12
+    cotas_por_mes = aporte_mensal_usd / preco_atual
+    total_cotas_acumuladas = cotas_por_mes * meses_projecao
+    renda_anual_projetada = total_cotas_acumuladas * preco_atual * dividend_yield
+    renda_mensal_projetada = renda_anual_projetada / 12
 
-  st.subheader("📊 Resultados Projetados para o seu Perfil")
+    st.subheader("📊 Resultados Projetados para o seu Perfil")
 
-  res1, res2, res3 = st.columns(3)
-  res1.metric("Cotas Acumuladas Estimadas", f"{total_cotas_acumuladas:.1f} cotas")
-  res2.metric(
-      "Renda Passiva Anual", f"US$ {renda_anual_projetada:,.2f} por ano"
-  )
-  res3.metric(
-      "Complemento de Renda Mensal",
-      f"US$ {renda_mensal_projetada:,.2f} / mês",
-      delta="Renda Passiva Gerada 💵",
-  )
+    res1, res2, res3 = st.columns(3)
+    res1.metric("Cotas Acumuladas Estimadas", f"{total_cotas_acumuladas:.1f} cotas")
+    res2.metric(
+        "Renda Passiva Anual", f"US$ {renda_anual_projetada:,.2f} por ano"
+    )
+    res3.metric(
+        "Complemento de Renda Mensal",
+        f"US$ {renda_mensal_projetada:,.2f} / mês",
+        delta="Renda Passiva Gerada 💵",
+    )
 
 st.divider()
 
@@ -195,24 +199,24 @@ st.markdown(
 with st.expander(
     "📘 Passo 1: Transferência de Recursos e Câmbio", expanded=True
 ):
-  st.markdown("""
+    st.markdown("""
     1. **Envio de Reais:** Acesse o aplicativo da sua corretora (Avenue ou Nomad).
     2. **Conversão Cambial:** Faça uma TED/PIX para a conta da corretora e converta para Dólares aplicando a cotação comercial e o IOF.
     3. **Saldo Disponível:** Confirme que o poder de compra em dólares já está liberado em sua conta internacional.
     """)
 
 with st.expander("📘 Passo 2: Localização do Ativo no Home Broker"):
-  st.markdown("""
+    st.markdown("""
     1. **Horário de Negociação:** Abra a aba de investimentos durante o horário de funcionamento da Bolsa de Nova York (NYSE / NASDAQ).
     2. **Busca pelo Ticker:** Digite o código oficial do ativo na barra de pesquisa (ex: **`O`** para a *Realty Income* ou **`SCHD`** para o ETF).
     3. **Análise de Conjuntura:** Confira o comportamento recente do preço antes de prosseguir.
     """)
 
 with st.expander("📘 Passo 3: Envio da Ordem de Compra (Execução Segura)"):
-  st.markdown("""
+    st.markdown("""
     1. **Tipo de Ordem:** 
-       * *Ordem a Mercado:* Executa imediatamente pelo preço atual.
-       * *Ordem Limitada (Recomendada):* Define o teto de preço máximo que você aceita pagar por cota, evitando oscilações bruscas do momento.
+        * *Ordem a Mercado:* Executa imediatamente pelo preço atual.
+        * *Ordem Limitada (Recomendada):* Define o teto de preço máximo que você aceita pagar por cota, evitando oscilações bruscas do momento.
     2. **Fracionamento:** Utilize o recurso de compra fracionada caso o valor do aporte não atinja o preço integral de uma cota inteira.
     3. **Confirmação:** Revise os parâmetros e finalize a ordem.
     """)
@@ -220,7 +224,7 @@ with st.expander("📘 Passo 3: Envio da Ordem de Compra (Execução Segura)"):
 with st.expander(
     "📘 Passo 4: Custódia, Dividendos e Retenção de Impostos"
 ):
-  st.markdown("""
+    st.markdown("""
     * **Custódia Vitalícia:** As cotas adquiridas ficam armazenadas de forma segura na sua conta internacional.
     * **Tributação Automática:** Os dividendos entram líquidos na sua conta após a retenção automática de 30% de imposto na fonte pelo governo americano.
     * **Utilização do Caixa:** Acumule para gerar efeito bola de neve ou solicite remessas futuras para o Brasil conforme sua necessidade.
