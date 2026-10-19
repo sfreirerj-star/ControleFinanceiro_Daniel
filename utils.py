@@ -8,6 +8,26 @@ def obter_conexao():
   return psycopg2.connect(st.secrets["DATABASE_URL"])
 
 
+def aplicar_estilo_moderno():
+  """Aplica estilos visuais modernos e padronizados no Streamlit."""
+  st.markdown(
+      """
+        <style>
+            .main {
+                background-color: #f8f9fa;
+            }
+            .stMetric {
+                background-color: #ffffff;
+                padding: 15px;
+                border-radius: 10px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            }
+        </style>
+    """,
+      unsafe_allow_html=True,
+  )
+
+
 # --- FUNÇÃO PARA GERENCIAR A COMPETÊNCIA GLOBALMENTE ---
 def configurar_sidebar_competencia():
   # Carrega dados básicos apenas para listar as competências disponíveis
