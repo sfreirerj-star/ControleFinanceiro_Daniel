@@ -140,7 +140,6 @@ st.write(
     " dos aportes de investimentos."
 )
 
-# Formulário de Novo Lançamento organizado com valores limpos e zerados
 with st.form("form_novo_lancamento_daniel", clear_on_submit=True):
   col1, col2, col3 = st.columns(3)
   with col1:
@@ -148,7 +147,15 @@ with st.form("form_novo_lancamento_daniel", clear_on_submit=True):
         "Data do Lançamento (DD/MM/AAAA)",
         value=datetime.now().strftime("%d/%m/%Y"),
     )
-    tipo = st.selectbox("Tipo", ["Despesa", "Receita"])
+    tipo_selecionado = st.selectbox(
+        "Tipo *",
+        [
+            "-- Selecione o Tipo --",
+            "Receita (crédito)",
+            "Despesa (débito)",
+            "Aporte (investimento)",
+        ],
+    )
   with col2:
     categoria = st.text_input(
         "Categoria (Ex: Alimentação, Transporte...)", value=""
@@ -161,28 +168,46 @@ with st.form("form_novo_lancamento_daniel", clear_on_submit=True):
 
   submitted = st.form_submit_button("Salvar Lançamento")
   if submitted:
-    try:
-      datetime.strptime(data_lancamento.strip(), "%d/%m/%Y")
-      conexao = obter_conexao()
-      cursor = conexao.cursor()
-      cursor.execute(
-          "INSERT INTO lancamentos (data, tipo, categoria, descricao, valor)"
-          " VALUES (%s, %s, %s, %s, %s)",
-          (data_lancamento.strip(), tipo, categoria, descricao, valor),
+    if tipo_selecionado == "-- Selecione o Tipo --":
+      st.error(
+          "⚠️ Atenção: Você precisa selecionar o Tipo (Receita, Despesa ou"
+          " Aporte) antes de salvar!"
       )
-      conexao.commit()
-      cursor.close()
-      conexao.close()
-      st.success("Lançamento guardado com sucesso!")
-      st.rerun()
-    except ValueError:
-      st.error("Data inválida. Utilize o formato DD/MM/AAAA.")
-    except Exception as e:
-      st.error(f"Erro ao salvar: {e}")
+    else:
+      if "Receita" in tipo_selecionado:
+        tipo_banco = "Receita"
+      elif "Despesa" in tipo_selecionado:
+        tipo_banco = "Despesa"
+      else:
+        tipo_banco = "Aporte"
+
+      try:
+        datetime.strptime(data_lancamento.strip(), "%d/%m/%Y")
+        conexao = obter_conexao()
+        cursor = conexao.cursor()
+        cursor.execute(
+            "INSERT INTO lancamentos (data, tipo, categoria, descricao, valor)"
+            " VALUES (%s, %s, %s, %s, %s)",
+            (
+                data_lancamento.strip(),
+                tipo_banco,
+                categoria,
+                descricao,
+                valor,
+            ),
+        )
+        conexao.commit()
+        cursor.close()
+        conexao.close()
+        st.success("Lançamento guardado com sucesso!")
+        st.rerun()
+      except ValueError:
+        st.error("Data inválida. Utilize o formato DD/MM/AAAA.")
+      except Exception as e:
+        st.error(f"Erro ao salvar: {e}")
 
 st.divider()
 
-# Carregamento robusto dos dados (Lançamentos e Aportes)
 df_lancamentos = pd.DataFrame(
     columns=["id", "data", "tipo", "categoria", "descricao", "valor"]
 )
@@ -207,7 +232,6 @@ try:
 except Exception as e:
   st.error(f"Erro ao carregar dados do banco: {e}")
 
-# Tratamento e limpeza dos dados e competências
 if not df_lancamentos.empty and "data" in df_lancamentos.columns:
   res_lanc = df_lancamentos["data"].apply(extrair_competencia)
   df_lancamentos["competencia"] = [x[0] for x in res_lanc]
@@ -262,17 +286,24 @@ total_gastos = (
     else 0.0
 )
 
-# --- DEFINIÇÃO SEGURA DO SALDO ANTERIOR ---
+total_aportes_lanc = (
+    df_lanc_mes[
+        df_lanc_mes["tipo_clean"].isin(["aporte", "investimento"])
+    ]["valor_num"].sum()
+    if not df_lanc_mes.empty
+    else 0.0
+)
+total_aportes_total = total_aportes_mes + total_aportes_lanc
+
 saldo_anterior = 0.0
 try:
-  # Se o Daniel possuir um saldo anterior específico para alguma competência, pode ajustar aqui.
-  # Por segurança, inicia em 0.0 ou mapeia conforme necessário.
   saldo_anterior = 0.0
 except Exception:
   saldo_anterior = 0.0
 
-# Saldo Real Atualizado: Saldo Anterior + Entradas - Gastos Comuns - Total em Aportes do Mês
-saldo_atual = saldo_anterior + total_receitas - total_gastos - total_aportes_mes
+saldo_atual = (
+    saldo_anterior + total_receitas - total_gastos - total_aportes_total
+)
 
 
 def fmt_moeda(v):
@@ -286,7 +317,7 @@ st.subheader(
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Total Créditos", fmt_moeda(total_receitas))
 c2.metric("Total Débitos", fmt_moeda(total_gastos))
-c3.metric("Total em Aportes (Mês)", fmt_moeda(total_aportes_mes))
+c3.metric("Total em Aportes (Mês)", fmt_moeda(total_aportes_total))
 
 if saldo_atual >= 0:
   c4.metric(
