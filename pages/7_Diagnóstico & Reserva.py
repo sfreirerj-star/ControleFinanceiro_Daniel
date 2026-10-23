@@ -1,19 +1,23 @@
 import pandas as pd
 import psycopg2
 import streamlit as st
+from utils import aplicar_estilo_moderno
 
 st.set_page_config(
-    page_title="Diagnóstico & Reserva - Daniel", page_icon="🎯", layout="wide"
+    page_title="Diagnóstico & Reserva - Painel do Daniel",
+    page_icon="🎯",
+    layout="wide",
 )
+aplicar_estilo_moderno()
+
 st.title("💰 Controle Financeiro — Painel do Daniel")
 st.header("🎯 Diagnóstico de Gargalos & Estratégia de Reserva")
 st.markdown(
-    "Esta aba analisa os seus lançamentos, simula o impacto da transição de"
-    " moradia em dezembro, a entrada do extra do PROEIS e traça a rota para"
-    " construir sua reserva de segurança."
+    "Esta aba analisa os seus lançamentos diários, identifica os principais gargalos"
+    " de despesas e traça a rota para construir e acelerar a sua reserva de segurança."
 )
 
-# Função flexível para buscar a URL do banco e carregar os dados (incluindo aportes)
+
 def carregar_dados():
   try:
     db_url = None
@@ -37,154 +41,170 @@ def carregar_dados():
           "⚠️ A chave de conexão com o banco não foi encontrada no arquivo"
           " `.streamlit/secrets.toml`."
       )
-      return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+      return (
+          pd.DataFrame(),
+          pd.DataFrame(),
+          pd.DataFrame(),
+          pd.DataFrame(),
+      )
 
     conn = psycopg2.connect(db_url)
-    df_lancamentos = pd.read_sql("SELECT * FROM lancamentos;", con=conn)
-    df_dividas = pd.read_sql("SELECT * FROM dividas;", con=conn)
-    
+    df_l = pd.read_sql("SELECT * FROM lancamentos;", con=conn)
+    df_d = pd.read_sql("SELECT * FROM dividas;", con=conn)
+
     try:
-      df_aportes = pd.read_sql("SELECT * FROM desafio_aportes;", con=conn)
+      df_a = pd.read_sql(
+          "SELECT id, data, valor, local_aplicacao FROM desafio_aportes;",
+          con=conn,
+      )
     except Exception:
-      df_aportes = pd.DataFrame()
+      df_a = pd.DataFrame(columns=["id", "data", "valor", "local_aplicacao"])
+
+    try:
+      df_r = pd.read_sql("SELECT * FROM desafio_resgates;", con=conn)
+    except Exception:
+      df_r = pd.DataFrame(columns=["id", "data", "valor", "motivo"])
 
     conn.close()
-    return df_lancamentos, df_dividas, df_aportes
+    return df_l, df_d, df_a, df_r
   except Exception as e:
-    st.error(f"Erro ao conectar com o banco de dados na nuvem: {e}")
-    return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    st.error(f"Erro ao conectar ao banco: {e}")
+    return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-# Carregando os dados
-df_lancamentos, df_dividas, df_aportes = carregar_dados()
 
-if df_lancamentos.empty:
-  st.info("Nenhum lançamento encontrado para gerar o diagnóstico no momento.")
+df_lancamentos, df_dividas, df_aportes, df_resgates = carregar_dados()
+
+# Filtro de Competência
+st.sidebar.header("📅 Filtro de Competência")
+comps = []
+if not df_lancamentos.empty and "data" in df_lancamentos.columns:
+  df_lancamentos["data_dt"] = pd.to_datetime(
+      df_lancamentos["data"], errors="coerce", dayfirst=True
+  )
+  df_lancamentos["competencia"] = df_lancamentos["data_dt"].dt.strftime(
+      "%m/%Y"
+  )
+  comps = sorted(
+      df_lancamentos["competencia"].dropna().unique().tolist(),
+      key=lambda c: f"{c.split('/')[1]}{c.split('/')[0]}",
+  )
+
+opcoes = ["Todos os Meses"] + comps
+comp_sel = st.sidebar.selectbox("Mês de Referência", options=opcoes, index=0)
+
+df_filtrado = (
+    df_lancamentos[df_lancamentos["competencia"] == comp_sel]
+    if comp_sel != "Todos os Meses" and not df_lancamentos.empty
+    else df_lancamentos.copy()
+)
+
+if df_filtrado.empty:
+  st.info(f"Nenhum lançamento encontrado para {comp_sel}.")
 else:
-  # Tratamento de dados de lançamentos
-  df_lancamentos["valor"] = pd.to_numeric(
-      df_lancamentos["valor"], errors="coerce"
+  df_filtrado["valor"] = pd.to_numeric(
+      df_filtrado["valor"], errors="coerce"
   ).fillna(0.0)
 
-  receitas_total = df_lancamentos[
-      df_lancamentos["tipo"].str.lower() == "receita"
+  # Filtro de receitas de trabalho/ganhos (exclui a categoria 'resgate')
+  rec_tot = df_filtrado[
+      (df_filtrado["tipo"].str.lower() == "receita")
+      & (df_filtrado["categoria"].str.strip().str.lower() != "resgate")
   ]["valor"].sum()
-  despesas_total = df_lancamentos[
-      df_lancamentos["tipo"].str.lower() == "despesa"
-  ]["valor"].sum()
 
-  # Tratamento de aportes para a reserva de segurança atual
-  total_aportes = 0.0
-  if not df_aportes.empty and "valor" in df_aportes.columns:
-    total_aportes = pd.to_numeric(df_aportes["valor"], errors="coerce").fillna(0.0).sum()
+  desp_tot = df_filtrado[df_filtrado["tipo"].str.lower() == "despesa"][
+      "valor"
+  ].sum()
 
-  # Saldo atual corrigido descontando as despesas e os aportes realizados
-  saldo_atual = receitas_total - despesas_total - total_aportes
+  tot_ap = (
+      pd.to_numeric(
+          df_aportes[
+              ~df_aportes["local_aplicacao"].str.contains(
+                  "Rendimento", case=False, na=False
+              )
+          ]["valor"],
+          errors="coerce",
+      )
+      .fillna(0.0)
+      .sum()
+      if not df_aportes.empty
+      else 0.0
+  )
+  tot_res = (
+      pd.to_numeric(df_resgates["valor"], errors="coerce").fillna(0.0).sum()
+      if not df_resgates.empty
+      else 0.0
+  )
+  reserva_liq = tot_ap - tot_res
+  saldo_atual = rec_tot - desp_tot
 
-  # Métricas Gerais Atuais com 4 colunas (incluindo Reserva de Segurança Atual)
-  st.subheader("📊 Panorama Atual (Com Aluguel)")
-  col1, col2, col3, col4 = st.columns(4)
-  col1.metric("Receita Atual", f"R$ {receitas_total:,.2f}")
-  col2.metric("Despesa Atual", f"R$ {despesas_total:,.2f}")
-  col3.metric("Reserva Atual (Aportes)", f"R$ {total_aportes:,.2f}", delta="Acumulado 💰")
-  col4.metric(
-      "Resultado Líquido Atual",
+  st.subheader(f"📊 Panorama Atual ({comp_sel})")
+  c1, c2, c3, c4 = st.columns(4)
+  c1.metric("Receita Atual", f"R$ {rec_tot:,.2f}")
+  c2.metric("Despesa Atual", f"R$ {desp_tot:,.2f}")
+  c3.metric(
+      "Reserva Guardada (Aportes)",
+      f"R$ {reserva_liq:,.2f}",
+      delta="Patrimônio Líquido 💙",
+  )
+  c4.metric(
+      "Resultado Líquido do Mês",
       f"R$ {saldo_atual:,.2f}",
       delta=(
-          f"{(saldo_atual/receitas_total)*100:.1f}% da Receita"
-          if receitas_total > 0
+          f"{(saldo_atual/rec_tot)*100:.1f}% da Receita"
+          if rec_tot > 0
           else "0%"
       ),
       delta_color="normal" if saldo_atual >= 0 else "inverse",
   )
 
   st.divider()
+  st.subheader("🚀 Simulador Estratégico de Reserva e Aportes Extra")
 
-  # ==========================================================
-  # SIMULADOR DE TRANSIÇÃO (DEZEMBRO + PROEIS + CORTES)
-  # ==========================================================
-  st.subheader("🚀 Simulador Estratégico: Cenário Dezembro em Diante")
-  st.markdown(
-      "Simule o impacto da sua mudança para o apartamento próprio (eliminando"
-      " o aluguel) e a injeção do extra do PROEIS na formação da sua reserva."
-  )
-
-  df_despesas = df_lancamentos[df_lancamentos["tipo"].str.lower() == "despesa"]
-  aluguel_atual = 0.0
-  if not df_despesas.empty:
-    aluguel_match = df_despesas[
-        df_despesas["categoria"].str.contains("Aluguel", case=False, na=False)
-    ]
-    if not aluguel_match.empty:
-      aluguel_atual = aluguel_match["valor"].sum()
-
-  col_tr1, col_tr2 = st.columns(2)
-
-  with col_tr1:
-    st.markdown("#### Premissas da Virada")
-    entregar_aluguel = st.checkbox(
-        "Entregar imóvel alugado em Dezembro (Zera o Aluguel de R$"
-        f" {aluguel_atual:,.2f})",
-        value=True,
+  col1, col2 = st.columns(2)
+  with col1:
+    meta_alvo = st.number_input(
+        "Meta de Reserva Desejada (R$)",
+        min_value=500.0,
+        value=3000.0,
+        step=500.0,
+        format="%.2f",
     )
-    incluir_proeis = st.checkbox(
-        "Considerar valor extra do PROEIS (R$ 5.320,00)", value=True
+    incluir_extra = st.checkbox(
+        "Considerar Injeção / Aporte Extra Inicial (R$ 500,00)", value=False
     )
+    val_extra = 500.0 if incluir_extra else 0.0
 
-    valor_proeis = 5320.0 if incluir_proeis else 0.0
-    economia_aluguel = aluguel_atual if entregar_aluguel else 0.0
+    saldo_livre_mensal = max(0.0, saldo_atual)
 
-    nova_despesa_total = despesas_total - economia_aluguel
-    novo_saldo_mensal = receitas_total - nova_despesa_total - total_aportes
-    meta_reserva_futura = (
-        nova_despesa_total / 30
-    ) * 180  # Meta de 6 meses das novas despesas
-
-  with col_tr2:
-    st.markdown("#### 🎯 Projeção de Caixa (A partir de Dezembro)")
+  with col2:
     st.metric(
-        "Nova Despesa Mensal",
-        f"R$ {nova_despesa_total:,.2f}",
-        delta=f"- R$ {economia_aluguel:,.2f} (Aluguel Eliminado)",
-        delta_color="inverse",
+        "Capacidade de Aporte Mensal (Saldo Livre)",
+        f"R$ {saldo_livre_mensal:,.2f}",
+        delta="Sobra atual calculada",
     )
     st.metric(
-        "Novo Saldo Líquido Mensal",
-        f"R$ {novo_saldo_mensal:,.2f}",
-        delta="Folga real garantida por mês!",
+        "Reserva Já Acumulada",
+        f"R$ {reserva_liq:,.2f}",
     )
-    if incluir_proeis:
+    if incluir_extra:
       st.success(
-          f"💰 **Injeção PROEIS:** Os R$ {valor_proeis:,.2f} extras entram"
-          f" direto como o **pontapé inicial absoluto** da sua reserva de"
-          f" segurança!"
+          f"💰 **Aporte Extra:** R$ {val_extra:,.2f} considerados no cálculo inicial."
       )
 
-  if novo_saldo_mensal > 1.0:
-    quanto_falta = max(0.0, meta_reserva_futura - valor_proeis - total_aportes)
-    meses_reserva = quanto_falta / novo_saldo_mensal
-
-    st.markdown(
-        f"""
-        <div style="padding: 15px; border-radius: 8px; background-color: rgba(0, 150, 255, 0.1); border-left: 5px solid #0096ff; margin-top: 15px;">
-            <b>Previsão de Sucesso:</b> Com a economia gerando <b>R$ {novo_saldo_mensal:,.2f}</b> livres por mês e aplicando o extra do PROEIS logo no início, você atinge a sua meta completa de reserva de segurança (<b>R$ {meta_reserva_futura:,.2f}</b>) em aproximadamente <b>{meses_reserva:.1f} meses</b> após a mudança em dezembro!
-        </div>
-        """,
-        unsafe_allow_html=True,
+  quanto_falta = max(0.0, meta_alvo - val_extra - reserva_liq)
+  if saldo_livre_mensal > 1.0:
+    meses_est = quanto_falta / saldo_livre_mensal
+    st.info(
+        f"🎯 **Previsão de Sucesso:** Guardando a sua sobra mensal de **R$ {saldo_livre_mensal:,.2f}**, você atingirá a sua meta de **R$ {meta_alvo:,.2f}** em aproximadamente **{meses_est:.1f} meses**!"
     )
   else:
-    st.markdown(
-        """
-        <div style="padding: 15px; border-radius: 8px; background-color: rgba(255, 165, 0, 0.1); border-left: 5px solid #ffa500; margin-top: 15px;">
-            <b>Atenção:</b> O saldo mensal projetado está zerado ou negativo. Para calcular o tempo estimado da reserva, marque a opção acima para <b>Entregar o imóvel alugado em Dezembro</b>, liberando assim a folga financeira necessária.
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.warning(
+        "💡 **Atenção:** Seu saldo livre mensal está baixo ou zerado. Ajuste os seus lançamentos ou controle os gastos diários para liberar margem para aportes na reserva."
     )
 
   st.divider()
-
-  # Mapeamento de Gargalos Clássico
-  st.subheader("🔍 Mapeamento Detalhado de Saídas Atuais")
+  st.subheader("🔍 Mapeamento Detalhado de Gastos e Despesas")
+  df_despesas = df_filtrado[df_filtrado["tipo"].str.lower() == "despesa"]
   if not df_despesas.empty:
     gargalos = (
         df_despesas.groupby("categoria")["valor"]
@@ -193,24 +213,19 @@ else:
         .sort_values(by="valor", ascending=False)
     )
     gargalos["% do Total"] = (
-        (gargalos["valor"] / despesas_total) * 100
-        if despesas_total > 0
-        else 0
+        (gargalos["valor"] / desp_tot) * 100 if desp_tot > 0 else 0
     )
-
     st.dataframe(
-        gargalos.style.format(
-            {"valor": "R$ {:,.2f}", "% do Total": "{:.1f}%"}
-        ),
+        gargalos.style.format({"valor": "R$ {:,.2f}", "% do Total": "{:.1f}%"}),
         use_container_width=True,
     )
 
   st.divider()
 
-  # Plano de Ação Estratégico
-  st.subheader("🛡️ Plano Diretor de Transição Patrimonial")
-  st.markdown(f"""
-    1. **Foco na Data de Dezembro:** Mantenha a disciplina financeira atual até completar o prazo contratual do Quinto Andar. A própria inércia do contrato resolve o problema estrutural do aluguel sem multas rescisórias abusivas.
-    2. **Blindagem do PROEIS (R$ {valor_proeis:,.2f}):** Quando esse valor for creditado, **não o misture com a conta corrente comum**. Destine-o imediatamente para uma aplicação de renda fixa com liquidez diária (criando a fundação da sua reserva).
-    3. **Aproveitamento do Imóvel Próprio:** A mudança para o seu apartamento em dezembro converterá um custo perdido (aluguel a terceiros) em permanência no seu próprio patrimônio, reduzindo drasticamente o escoamento de caixa.
-    """)
+  # Plano de Ação para o Daniel
+  st.subheader("🛡️ Plano Diretor de Educação & Formação Patrimonial")
+  st.markdown("""
+1. **Consistência nos Aportes:** Como não há custos pesados de moradia/aluguel, o foco principal nesta fase de vida é transformar o saldo positivo em investimentos diários/mensais antes de gastar o dinheiro.
+2. **Separação de Contas:** Mantenha os aportes guardados no *Módulo do Desafio* (Renda Fixa/Liquidez Diária) separados do saldo da conta corrente comum para evitar o consumo por impulso.
+3. **Mapeamento das Categoria de Lazer/Acessórios:** Acompanhe a tabela de saídas para garantir que pequenas despesas recorrentes não consumam a capacidade de poupança do mês.
+""")

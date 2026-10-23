@@ -2,10 +2,12 @@ from datetime import datetime
 import pandas as pd
 import psycopg2
 import streamlit as st
+from utils import aplicar_estilo_moderno
 
 st.set_page_config(
     page_title="Novo Lançamento - Daniel", page_icon="📝", layout="wide"
 )
+aplicar_estilo_moderno()
 
 
 def obter_conexao():
@@ -134,14 +136,15 @@ except Exception:
   competencia_selecionada = datetime.now().strftime("%m/%Y")
 
 st.title("💰 Controle Financeiro — Painel do Daniel")
-st.subheader("📝 Novo Lançamento & Registo de Caixa")
+st.subheader("📝 Novo Lançamento & Registro de Caixa")
 st.write(
-    "Registe as suas receitas e despesas do dia a dia com abatimento automático"
-    " dos aportes de investimentos."
+    "Registre as suas receitas e despesas do dia a dia com abatimento automático"
+    " dos aportes e integração dos resgates de investimentos."
 )
 
 with st.form("form_novo_lancamento_daniel", clear_on_submit=True):
   col1, col2, col3 = st.columns(3)
+
   with col1:
     data_lancamento = st.text_input(
         "Data do Lançamento (DD/MM/AAAA)",
@@ -156,6 +159,7 @@ with st.form("form_novo_lancamento_daniel", clear_on_submit=True):
             "Aporte (investimento)",
         ],
     )
+
   with col2:
     categoria = st.text_input(
         "Categoria (Ex: Alimentação, Transporte...)", value=""
@@ -163,6 +167,7 @@ with st.form("form_novo_lancamento_daniel", clear_on_submit=True):
     valor = st.number_input(
         "Valor (R$)", min_value=0.0, value=0.0, step=10.0, format="%.2f"
     )
+
   with col3:
     descricao = st.text_input("Descrição / Estabelecimento", value="")
 
@@ -188,18 +193,12 @@ with st.form("form_novo_lancamento_daniel", clear_on_submit=True):
         cursor.execute(
             "INSERT INTO lancamentos (data, tipo, categoria, descricao, valor)"
             " VALUES (%s, %s, %s, %s, %s)",
-            (
-                data_lancamento.strip(),
-                tipo_banco,
-                categoria,
-                descricao,
-                valor,
-            ),
+            (data_lancamento.strip(), tipo_banco, categoria, descricao, valor),
         )
         conexao.commit()
         cursor.close()
         conexao.close()
-        st.success("Lançamento guardado com sucesso!")
+        st.success("Lançamento salvo com sucesso!")
         st.rerun()
       except ValueError:
         st.error("Data inválida. Utilize o formato DD/MM/AAAA.")
@@ -228,6 +227,7 @@ try:
     )
   except Exception:
     conexao.rollback()
+
   conexao.close()
 except Exception as e:
   st.error(f"Erro ao carregar dados do banco: {e}")
@@ -248,12 +248,13 @@ else:
 if not df_aportes.empty and "data" in df_aportes.columns:
   res_ap = df_aportes["data"].apply(extrair_competencia)
   df_aportes["competencia"] = [x[0] for x in res_ap]
-  df_aportes["comp_ordem"] = [x[1] for x in res_ap]
   df_aportes["valor_num"] = pd.to_numeric(
       df_aportes["valor"], errors="coerce"
   ).fillna(0.0)
+
   df_aportes_mes = df_aportes[
-      df_aportes["competencia"] == competencia_selecionada
+      (df_aportes["competencia"] == competencia_selecionada)
+      & (~df_aportes["local_aplicacao"].str.contains("Rendimento", case=False, na=False))
   ]
   total_aportes_mes = (
       df_aportes_mes["valor_num"].sum() if not df_aportes_mes.empty else 0.0
@@ -297,7 +298,8 @@ total_aportes_total = total_aportes_mes + total_aportes_lanc
 
 saldo_anterior = 0.0
 try:
-  saldo_anterior = 0.0
+  if competencia_selecionada == "10/2026":
+    saldo_anterior = 0.0
 except Exception:
   saldo_anterior = 0.0
 
@@ -346,4 +348,4 @@ if not df_lanc_mes.empty:
   ]
   st.dataframe(df_exibicao[cols_finais].set_index("id"), use_container_width=True)
 else:
-  st.info("Nenhum lançamento registado nesta competência.")
+  st.info("Nenhum lançamento registrado nesta competência.")
