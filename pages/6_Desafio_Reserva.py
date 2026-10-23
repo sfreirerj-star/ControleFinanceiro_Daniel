@@ -4,26 +4,9 @@ import sys
 import pandas as pd
 import psycopg2
 import streamlit as st
-from utils import aplicar_estilo_moderno
-
-st.set_page_config(page_title="Título da Página", layout="wide")
-aplicar_estilo_moderno()  # <-- Essencial em cada página
-
-# Adiciona a pasta raiz ao caminho do Python para conseguir importar o database.py
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-try:
-  from database import inicializar_banco, obter_conexao
-
-  # Garante que as tabelas estão prontas e abre a conexão correta
-  inicializar_banco()
-except ImportError:
-
-  def inicializar_banco():
-    pass
-
 
 st.set_page_config(
-    page_title="Desafio Reserva & Simulador - Painel do Marcelo",
+    page_title="Desafio Reserva & Simulador — Painel do Daniel",
     page_icon="🎯",
     layout="wide",
 )
@@ -76,8 +59,9 @@ def garantir_tabelas_e_sincronizacao():
         val_l = float(row_l["valor"])
         dt_l = row_l["data"]
 
-        local_encontrado = "Banco Itaú" if "Itaú" in desc else "Outro"
+        local_encontrado = "Outro"
         for banco in [
+            "Banco Itaú",
             "Nomad",
             "Sofisa Direto",
             "Banco Inter",
@@ -154,7 +138,7 @@ def garantir_tabelas_e_sincronizacao():
 
 garantir_tabelas_e_sincronizacao()
 
-st.title("💰 Controle Financeiro — Painel do Marcelo")
+st.title("💰 Controle Financeiro — Painel do Daniel")
 st.subheader("🎯 Desafio Personalizado & Simulador de Antecipação")
 st.write(
     "Controle seus aportes mensais, gerencie resgates, diversifique suas"
@@ -178,15 +162,12 @@ aba_desafio, aba_resgate, aba_simulador, aba_orientacao = st.tabs([
 
 # --- ABA 1: MEU DESAFIO E APORTES ---
 with aba_desafio:
-  with st.expander(
-      "⚙️ Configurar / Selecionar Meta Mensal (Inclui CPROEIS)", expanded=True
-  ):
+  with st.expander("⚙️ Configurar / Selecionar Meta Mensal", expanded=True):
     opcoes_meta_mensal = {
         "Personalizado (Definir manual)": 0.0,
-        "1 Plantão CPROEIS (R$ 532,00 / mês)": 532.00,
-        "Conservador (R$ 300,00 / mês)": 300.00,
-        "Intermediário (R$ 800,00 / mês)": 800.00,
-        "Agressivo (R$ 1.000,00 / mês)": 1000.00,
+        "Conservador (R$ 100,00 / mês)": 100.00,
+        "Intermediário (R$ 300,00 / mês)": 300.00,
+        "Agressivo (R$ 500,00 / mês)": 500.00,
     }
 
     col_m1, col_m2 = st.columns(2)
@@ -204,9 +185,9 @@ with aba_desafio:
     else:
       meta_mensal_base = st.number_input(
           "Valor Desejado por Mês (R$)",
-          min_value=50.0,
-          value=532.00,
-          step=50.0,
+          min_value=10.0,
+          value=100.00,
+          step=10.0,
           format="%.2f",
       )
 
@@ -282,7 +263,7 @@ with aba_desafio:
   st.divider()
 
   st.markdown("### 📥 Registrar Novo Depósito / Aporte")
-  with st.form("form_novo_aporte"):
+  with st.form("form_novo_aporte_daniel"):
     col_a1, col_a2, col_a3 = st.columns(3)
     with col_a1:
       data_aporte = st.text_input(
@@ -293,7 +274,7 @@ with aba_desafio:
       valor_aporte = st.number_input(
           "Valor Depositado (R$)",
           min_value=1.0,
-          value=meta_mensal_base if meta_mensal_base > 0 else 532.00,
+          value=meta_mensal_base if meta_mensal_base > 0 else 100.00,
           step=10.0,
           format="%.2f",
       )
@@ -308,13 +289,13 @@ with aba_desafio:
           "Outro (Personalizado)",
       ]
       local_selecionado = st.selectbox(
-          "Local da Aplicação", locais_disponiveis, key="novo_local"
+          "Local da Aplicação", locais_disponiveis, key="novo_local_daniel"
       )
 
     local_personalizado = st.text_input(
         "Se selecionou 'Outro (Personalizado)' acima, digite o nome do Banco ou"
         " Corretora:",
-        key="novo_outro",
+        key="novo_outro_daniel",
     )
 
     if st.form_submit_button("💾 Salvar Aporte no Desafio"):
@@ -359,7 +340,7 @@ with aba_desafio:
 
     dados_atual = df_aportes[df_aportes["id"] == id_selecionado].iloc[0]
 
-    with st.form("form_editar_aporte"):
+    with st.form("form_editar_aporte_daniel"):
       st.write(f"Editando o Lançamento ID: **{id_selecionado}**")
       col_e1, col_e2, col_e3 = st.columns(3)
       with col_e1:
@@ -395,13 +376,13 @@ with aba_desafio:
             "Local da Aplicação",
             locais_edicao,
             index=idx_default,
-            key="edit_local",
+            key="edit_local_daniel",
         )
 
       novo_outro_txt = st.text_input(
           "Se 'Outro (Personalizado)', digite o nome correto:",
           value=local_atual if idx_default == len(locais_edicao) - 1 else "",
-          key="edit_outro",
+          key="edit_outro_daniel",
       )
 
       col_btn1, col_btn2 = st.columns(2)
@@ -463,13 +444,19 @@ with aba_desafio:
 
   st.markdown("### 🏦 Saldo e Distribuição por Banco / Corretora (Líquido)")
   if not df_aportes.empty:
+    df_aportes_clean = df_aportes.copy()
+    # Unifica nomes com sufixos antigos para garantir cálculo limpo por instituição
+    df_aportes_clean["local_aplicacao"] = df_aportes_clean["local_aplicacao"].str.replace(" (Rendimento)", "", regex=False).str.strip()
+
     df_resumo_aportes = (
-        df_aportes.groupby("local_aplicacao")["valor_num"].sum().reset_index()
+        df_aportes_clean.groupby("local_aplicacao")["valor_num"].sum().reset_index()
     )
 
     if not df_resgates.empty:
+      df_resgates_clean = df_resgates.copy()
+      df_resgates_clean["local_origem"] = df_resgates_clean["local_origem"].str.replace(" (Rendimento)", "", regex=False).str.strip()
       df_resumo_resgates = (
-          df_resgates.groupby("local_origem")["valor_num"].sum().reset_index()
+          df_resgates_clean.groupby("local_origem")["valor_num"].sum().reset_index()
       )
       df_resumo_bancos = pd.merge(
           df_resumo_aportes,
@@ -538,22 +525,22 @@ with aba_resgate:
   )
 
   if tipo_operacao == "Registrar Resgate":
-    with st.form("form_novo_resgate"):
+    with st.form("form_novo_resgate_daniel"):
       col_r1, col_r2, col_r3 = st.columns(3)
       with col_r1:
         data_resgate = st.text_input(
             "Data do Resgate (DD/MM/AAAA)",
             value=datetime.now().strftime("%d/%m/%Y"),
-            key="resgate_data",
+            key="resgate_data_daniel",
         )
       with col_r2:
         valor_resgate = st.number_input(
             "Valor Resgatado (R$)",
             min_value=1.0,
-            value=100.00,
-            step=50.0,
+            value=50.00,
+            step=10.0,
             format="%.2f",
-            key="resgate_valor",
+            key="resgate_valor_daniel",
         )
       with col_r3:
         locais_resgate = [
@@ -568,17 +555,17 @@ with aba_resgate:
         local_origem_sel = st.selectbox(
             "Instituição de Origem do Resgate",
             locais_resgate,
-            key="resgate_local",
+            key="resgate_local_daniel",
         )
 
       origem_personalizada = st.text_input(
           "Se 'Outro (Personalizado)', digite o nome:",
-          key="resgate_outro_local",
+          key="resgate_outro_local_daniel",
       )
 
       motivo_resgate = st.text_input(
           "Motivo do Resgate / Destino (Ex: Emergência, Oportunidade, etc.)",
-          key="resgate_motivo",
+          key="resgate_motivo_daniel",
       )
 
       if st.form_submit_button("📤 Registrar Resgate"):
@@ -631,7 +618,7 @@ with aba_resgate:
         except Exception as e:
           st.error(f"Erro ao salvar resgate: {e}")
   else:
-    with st.form("form_novo_rendimento"):
+    with st.form("form_novo_rendimento_daniel"):
       st.info(
           "💡 **Ajuste de Corretora:** Lançar rendimentos aumenta o total"
           " aportado/acumulado proporcionalmente, permitindo corrigir pequenas"
@@ -644,11 +631,10 @@ with aba_resgate:
             value=datetime.now().strftime("%d/%m/%Y"),
         )
       with col_rend2:
-        # CORREÇÃO APLICADA AQUI: min_value=0.01 e valor padrão seguro para evitar erros abaixo do limite
         valor_rend = st.number_input(
             "Valor da Correção / Juros (R$)",
             min_value=0.01,
-            value=max(0.01, 0.76),
+            value=1.00,
             step=0.10,
             format="%.2f",
         )
@@ -670,11 +656,11 @@ with aba_resgate:
           datetime.strptime(data_rend.strip(), "%d/%m/%Y")
           conexao = obter_conexao()
           cursor = conexao.cursor()
-          # Registra como aporte de ajuste para somar no saldo da instituição
+          # Registra diretamente com o nome da instituição para garantir abates limpos
           cursor.execute(
               "INSERT INTO desafio_aportes (data, valor, local_aplicacao) VALUES"
               " (%s, %s, %s)",
-              (data_rend.strip(), valor_rend, f"{local_rend} (Rendimento)"),
+              (data_rend.strip(), valor_rend, local_rend),
           )
           conexao.commit()
           cursor.close()
@@ -708,7 +694,7 @@ with aba_resgate:
     id_resgate_excluir = st.selectbox(
         "Selecione o ID do resgate que deseja excluir:",
         df_resgates["id"].tolist(),
-        key="excluir_resg_id",
+        key="excluir_resg_id_daniel",
     )
     if st.button("Excluir Resgate Selecionado"):
       try:
@@ -755,32 +741,31 @@ with aba_resgate:
 with aba_simulador:
   st.markdown("### 🎯 Simulador de Antecipação de Metas")
   st.write(
-      "Descubra o impacto de um ganho extra (como um plantão ou projeto"
-      " digital) no alcance da sua meta de reserva."
+      "Descubra o impacto de um ganho extra no alcance da sua meta de reserva."
   )
 
   col_s1, col_s2 = st.columns(2)
   with col_s1:
     meta_alvo_sim = st.number_input(
         "Meta Alvo Total Desejada (R$)",
-        min_value=1000.0,
-        value=max(meta_total, 10000.0),
-        step=5000.0,
+        min_value=100.0,
+        value=max(meta_total, 1200.0),
+        step=500.0,
         format="%.2f",
     )
     aporte_mensal_sim = st.number_input(
         "Sua média de aporte mensal atual (R$)",
-        min_value=100.0,
-        value=meta_mensal_base if meta_mensal_base > 0 else 532.00,
-        step=100.0,
+        min_value=10.0,
+        value=meta_mensal_base if meta_mensal_base > 0 else 100.00,
+        step=50.0,
         format="%.2f",
     )
   with col_s2:
     ganho_extra_simulado = st.number_input(
-        "Valor do Ganho Extra Pontual / Plantão Extra (R$)",
-        min_value=50.0,
-        value=532.00,
-        step=50.0,
+        "Valor do Ganho Extra Pontual (R$)",
+        min_value=10.0,
+        value=100.00,
+        step=10.0,
         format="%.2f",
     )
     quantidade_extras = st.number_input(
@@ -859,7 +844,7 @@ with aba_simulador:
         "Patrimônio Inicial Guardado (R$)",
         min_value=0.0,
         value=float(total_guardado),
-        step=500.0,
+        step=100.0,
         format="%.2f",
     )
   with col_sim_av2:
@@ -867,7 +852,7 @@ with aba_simulador:
         "Aporte Mensal Previsto (R$)",
         min_value=0.0,
         value=float(meta_mensal_base),
-        step=100.0,
+        step=50.0,
         format="%.2f",
     )
   with col_sim_av3:
@@ -979,8 +964,8 @@ with aba_orientacao:
   st.markdown("#### 💡 Estratégia de Diversificação (Regra dos Ovos)")
   st.info(
       "📌 **Dica de Ouro:** Dividir os aportes entre 2 ou 3 instituições"
-      " diferentes (por exemplo, Banco Itaú, Nomad e Sofisa) protege seu"
-      " patrimônio, garante taxas competitivas e mantém o valor protegido."
+      " diferentes protege seu patrimônio, garante taxas competitivas e mantém"
+      " o valor protegido."
   )
 
   st.divider()
