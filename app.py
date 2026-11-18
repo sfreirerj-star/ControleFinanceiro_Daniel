@@ -5,11 +5,11 @@ import psycopg2
 import streamlit as st
 from utils import aplicar_estilo_moderno
 
-# Configuração da Página e Aplicação do Estilo
+# 1. Configuração da Página e Aplicação do Estilo DEVEM ser chamadas juntas no topo
 st.set_page_config(
     page_title="Controle Financeiro - Daniel", page_icon="💰", layout="wide"
 )
-aplicar_estilo_moderno()
+aplicar_estilo_moderno()  # <-- Essencial logo após o set_page_config
 
 
 def obter_conexao():
@@ -59,7 +59,7 @@ df_dividas = pd.DataFrame(
     columns=["credor", "valor_total", "juros_mensal", "status"]
 )
 
-# Carregamento robusto direto das tabelas oficiais
+# Carregamento robusto direto das tabelas oficiais do Supabase
 try:
   conexao = obter_conexao()
 
@@ -82,11 +82,10 @@ try:
     except Exception:
       conexao.rollback()
 
-  # 3. Carregar Resgates
+  # 3. Carregar Resgates da Tabela Oficial 'desafio_resgates'
   try:
     df_resgates = pd.read_sql_query(
-        "SELECT id, data, valor, local_origem, motivo FROM desafio_resgates",
-        conexao,
+        "SELECT id, data, valor, local_origem, motivo FROM desafio_resgates", conexao
     )
   except Exception:
     conexao.rollback()
@@ -125,9 +124,9 @@ if not df_lancamentos.empty and "categoria" in df_lancamentos.columns:
     df_resg_lanc["valor_num"] = pd.to_numeric(
         df_resg_lanc["valor"], errors="coerce"
     ).fillna(0.0)
-    df_resgates = pd.concat(
-        [df_resgates, df_resg_lanc], ignore_index=True
-    ).drop_duplicates(subset=["data", "valor_num"])
+    df_resgates = pd.concat([df_resgates, df_resg_lanc], ignore_index=True).drop_duplicates(
+        subset=["data", "valor_num"]
+    )
 
 
 def fmt_moeda(valor):
@@ -159,7 +158,6 @@ def extrair_competencia(data_val):
     pass
   return "Indefinido", "9999-99"
 
-
 if not df_lancamentos.empty and "data" in df_lancamentos.columns:
   res_lanc = df_lancamentos["data"].apply(extrair_competencia)
   df_lancamentos["competencia"] = [x[0] for x in res_lanc]
@@ -187,11 +185,7 @@ else:
 mapeamento_comps = pd.concat([
     df_lancamentos[["competencia", "comp_ordem"]],
     df_aportes[["competencia", "comp_ordem"]],
-    (
-        df_resgates[["competencia", "comp_ordem"]]
-        if not df_resgates.empty
-        else pd.DataFrame(columns=["competencia", "comp_ordem"])
-    ),
+    df_resgates[["competencia", "comp_ordem"]] if not df_resgates.empty else pd.DataFrame(columns=["competencia", "comp_ordem"]),
 ]).drop_duplicates()
 
 mapeamento_comps = mapeamento_comps[
@@ -209,17 +203,15 @@ st.sidebar.header("📅 Competência (Mês/Ano)")
 competencia_selecionada = st.sidebar.selectbox(
     "Selecione o Mês de Referência",
     options=competencias_disponiveis,
-    index=(
-        0
-        if mes_atual_sistema in competencias_disponiveis
-        else len(competencias_disponiveis) - 1
-    ),
+    index=0
+    if mes_atual_sistema in competencias_disponiveis
+    else len(competencias_disponiveis) - 1,
 )
 
 ordem_selecionada = (
-    mapeamento_comps[
-        mapeamento_comps["competencia"] == competencia_selecionada
-    ]["comp_ordem"].values[0]
+    mapeamento_comps[mapeamento_comps["competencia"] == competencia_selecionada][
+        "comp_ordem"
+    ].values[0]
     if competencia_selecionada in mapeamento_comps["competencia"].values
     else datetime.now().strftime("%Y-%m")
 )
@@ -227,18 +219,21 @@ ordem_selecionada = (
 # --- CORPO DA PÁGINA PRINCIPAL ---
 st.title("💰 Controle Financeiro — Painel do Daniel")
 st.write(
-    "Aplicativo unificado de controle de créditos, débitos, investimentos e"
-    f" dívidas (Competência: **{competencia_selecionada}**)."
+    "Aplicativo unificado de controle de créditos, débitos, investimentos e dívidas"
+    f" (Competência: **{competencia_selecionada}**)."
 )
 
 if not df_lancamentos.empty and "valor" in df_lancamentos.columns:
   df_lancamentos["valor"] = pd.to_numeric(
       df_lancamentos["valor"], errors="coerce"
   ).fillna(0.0)
-  df_lancamentos["tipo_clean"] = df_lancamentos["tipo"].str.strip().str.lower()
+  df_lancamentos["tipo_clean"] = (
+      df_lancamentos["tipo"].str.strip().str.lower()
+  )
 else:
   df_lancamentos["tipo_clean"] = ""
 
+# Isola os lançamentos comuns do mês (excluindo resgates duplicados no cálculo de receitas comuns)
 df_lanc_mes = (
     df_lancamentos[
         (df_lancamentos["competencia"] == competencia_selecionada)
@@ -266,21 +261,17 @@ total_gastos_mes = (
     else 0.0
 )
 
-# Aportes e resgates específicos do mês selecionado
+# Aportes e resgates específicos do mês selecionado (Apenas capital real do bolso, ignorando marcadores de Rendimento)
 df_aportes_mes = (
     df_aportes[
         (df_aportes["competencia"] == competencia_selecionada)
-        & (~df_aportes["local_aplicacao"].str.contains(
-            "Rendimento", case=False, na=False
-        ))
+        & (~df_aportes["local_aplicacao"].str.contains("Rendimento", case=False, na=False))
     ].copy()
     if not df_aportes.empty
     else pd.DataFrame()
 )
 total_aportes_mes = (
-    df_aportes_mes["valor_num"].sum()
-    if not df_aportes_mes.empty and "valor_num" in df_aportes_mes.columns
-    else 0.0
+    df_aportes_mes["valor_num"].sum() if not df_aportes_mes.empty and "valor_num" in df_aportes_mes.columns else 0.0
 )
 
 df_resgates_mes = (
@@ -289,13 +280,8 @@ df_resgates_mes = (
     else pd.DataFrame()
 )
 total_resgates_mes = (
-    df_resgates_mes["valor_num"].sum()
-    if not df_resgates_mes.empty and "valor_num" in df_resgates_mes.columns
-    else 0.0
+    df_resgates_mes["valor_num"].sum() if not df_resgates_mes.empty and "valor_num" in df_resgates_mes.columns else 0.0
 )
-
-impacto_investimentos_mes = total_aportes_mes - total_resgates_mes
-
 
 def calcular_saldo_ate_competencia(df_lan, df_ap, df_res, ordem_alvo):
   try:
@@ -342,9 +328,7 @@ def calcular_saldo_ate_competencia(df_lan, df_ap, df_res, ordem_alvo):
         apo_c = (
             df_ap[
                 (df_ap["comp_ordem"] == ord_comp)
-                & (~df_ap["local_aplicacao"].str.contains(
-                    "Rendimento", case=False, na=False
-                ))
+                & (~df_ap["local_aplicacao"].str.contains("Rendimento", case=False, na=False))
             ]["valor_num"].sum()
             if not df_ap.empty and "valor_num" in df_ap.columns
             else 0.0
@@ -355,27 +339,18 @@ def calcular_saldo_ate_competencia(df_lan, df_ap, df_res, ordem_alvo):
             else 0.0
         )
 
-        saldo_acumulado += rec - gas - (apo_c - res_c)
+        saldo_acumulado += (rec - gas - (apo_c - res_c))
     return saldo_acumulado
   except Exception:
     return 0.0
-
 
 def calcular_patrimonio_guardado_ate(df_ap, df_res, ordem_alvo):
   try:
     todas_ordens = sorted(
         list(
             set(
-                df_ap[df_ap["comp_ordem"] != "9999-99"][
-                    "comp_ordem"
-                ].unique().tolist()
-                + (
-                    df_res[df_res["comp_ordem"] != "9999-99"][
-                        "comp_ordem"
-                    ].unique().tolist()
-                    if not df_res.empty and "comp_ordem" in df_res.columns
-                    else []
-                )
+                df_ap[df_ap["comp_ordem"] != "9999-99"]["comp_ordem"].unique().tolist()
+                + (df_res[df_res["comp_ordem"] != "9999-99"]["comp_ordem"].unique().tolist() if not df_res.empty and "comp_ordem" in df_res.columns else [])
             )
         )
     )
@@ -384,15 +359,13 @@ def calcular_patrimonio_guardado_ate(df_ap, df_res, ordem_alvo):
       if ord_comp <= ordem_alvo:
         apo_c = (
             df_ap[df_ap["comp_ordem"] == ord_comp]["valor_num"].sum()
-            if not df_ap.empty and "valor_num" in df_ap.columns
-            else 0.0
+            if not df_ap.empty and "valor_num" in df_ap.columns else 0.0
         )
         res_c = (
             df_res[df_res["comp_ordem"] == ord_comp]["valor_num"].sum()
-            if not df_res.empty and "valor_num" in df_res.columns
-            else 0.0
+            if not df_res.empty and "valor_num" in df_res.columns else 0.0
         )
-        patrimonio_acumulado += apo_c - res_c
+        patrimonio_acumulado += (apo_c - res_c)
     return patrimonio_acumulado
   except Exception:
     return 0.0
@@ -406,11 +379,13 @@ patrimonio_guardado_mes = calcular_patrimonio_guardado_ate(
     df_aportes, df_resgates, ordem_selecionada
 )
 
+# Saldo Final do Mês unificado e blindado com o extrato real de conta
 saldo_mes = (
     saldo_remanescente_anterior
     + total_receitas_mes
     - total_gastos_mes
-    - impacto_investimentos_mes
+    - total_aportes_mes  # Subtrai o capital que de fato foi investido e saiu da conta no mês
+    + total_resgates_mes # Soma o dinheiro de resgates que voltou para a conta
 )
 
 st.subheader(
@@ -424,7 +399,7 @@ col3.metric("Gastos Comuns", fmt_moeda(total_gastos_mes))
 col4.metric(
     "Patrimônio Guardado",
     fmt_moeda(patrimonio_guardado_mes),
-    delta="Acumulado Líquido",
+    delta="Acumulado Líquido"
 )
 
 if saldo_mes >= 0:
@@ -440,12 +415,9 @@ else:
   )
 
 st.info(
-    f"💡 **Detalhamento da Reserva ({competencia_selecionada}):** Patrimônio"
-    f" Acumulado no Mês: **{fmt_moeda(patrimonio_guardado_mes)}** | Aportes até"
-    " o Mês:"
-    f" **{fmt_moeda(df_aportes[df_aportes['comp_ordem'] <= ordem_selecionada]['valor_num'].sum() if not df_aportes.empty else 0.0)}**"
-    " | Resgates até o Mês:"
-    f" **{fmt_moeda(df_resgates[df_resgates['comp_ordem'] <= ordem_selecionada]['valor_num'].sum() if not df_resgates.empty and 'comp_ordem' in df_resgates.columns else 0.0)}**"
+    f"💡 **Detalhamento da Reserva ({competencia_selecionada}):** Patrimônio Acumulado no Mês: **{fmt_moeda(patrimonio_guardado_mes)}** | "
+    f"Aportes até o Mês: **{fmt_moeda(df_aportes[df_aportes['comp_ordem'] <= ordem_selecionada]['valor_num'].sum() if not df_aportes.empty else 0.0)}** | "
+    f"Resgates até o Mês: **{fmt_moeda(df_resgates[df_resgates['comp_ordem'] <= ordem_selecionada]['valor_num'].sum() if not df_resgates.empty and 'comp_ordem' in df_resgates.columns else 0.0)}**"
 )
 
 st.divider()
@@ -537,7 +509,6 @@ else:
 
 st.subheader(f"📤 Débitos (Despesas) da Competência: {competencia_selecionada}")
 
-# CORREÇÃO DO ERRO: Checa df_lanc_mes antes de criar df_debitos_mes
 df_debitos_mes = (
     df_lanc_mes[
         df_lanc_mes["tipo_clean"].isin(["despesa", "débito", "debito", "saida"])
@@ -592,13 +563,7 @@ todas_ordens = sorted(
             + df_aportes[df_aportes["comp_ordem"] != "9999-99"][
                 "comp_ordem"
             ].unique().tolist()
-            + (
-                df_resgates[df_resgates["comp_ordem"] != "9999-99"][
-                    "comp_ordem"
-                ].unique().tolist()
-                if not df_resgates.empty and "comp_ordem" in df_resgates.columns
-                else []
-            )
+            + (df_resgates[df_resgates["comp_ordem"] != "9999-99"]["comp_ordem"].unique().tolist() if not df_resgates.empty and "comp_ordem" in df_resgates.columns else [])
         )
     )
 )
@@ -641,17 +606,13 @@ if todas_ordens:
     apo_c = (
         df_aportes[
             (df_aportes["comp_ordem"] == ord_comp)
-            & (~df_aportes["local_aplicacao"].str.contains(
-                "Rendimento", case=False, na=False
-            ))
+            & (~df_aportes["local_aplicacao"].str.contains("Rendimento", case=False, na=False))
         ]["valor_num"].sum()
-        if not df_aportes.empty and "valor_num" in df_aportes.columns
-        else 0.0
+        if not df_aportes.empty and "valor_num" in df_aportes.columns else 0.0
     )
     res_c = (
         df_resgates[df_resgates["comp_ordem"] == ord_comp]["valor_num"].sum()
-        if not df_resgates.empty and "valor_num" in df_resgates.columns
-        else 0.0
+        if not df_resgates.empty and "valor_num" in df_resgates.columns else 0.0
     )
 
     investimento_liquido_c = apo_c - res_c
