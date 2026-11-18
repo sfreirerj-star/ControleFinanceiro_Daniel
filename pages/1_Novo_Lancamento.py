@@ -117,6 +117,14 @@ def garantir_tabelas():
                 valor NUMERIC(10,2) NOT NULL
             )
         """)
+    cursor.execute("""
+            CREATE TABLE IF NOT EXISTS desafio_aportes (
+                id SERIAL PRIMARY KEY,
+                data TEXT NOT NULL,
+                valor NUMERIC(10,2) NOT NULL,
+                local_aplicacao TEXT NOT NULL
+            )
+        """)
     conexao.commit()
     cursor.close()
     conexao.close()
@@ -190,15 +198,41 @@ with st.form("form_novo_lancamento_daniel", clear_on_submit=True):
         datetime.strptime(data_lancamento.strip(), "%d/%m/%Y")
         conexao = obter_conexao()
         cursor = conexao.cursor()
+        
+        # 1. Insere na tabela geral de lançamentos
         cursor.execute(
             "INSERT INTO lancamentos (data, tipo, categoria, descricao, valor)"
             " VALUES (%s, %s, %s, %s, %s)",
             (data_lancamento.strip(), tipo_banco, categoria, descricao, valor),
         )
+
+        # 2. SE FOR APORTE: Espelha automaticamente na tabela de aportes do desafio!
+        if tipo_banco == "Aporte" or categoria.strip().lower() == "investimento":
+          desc_lower = descricao.lower()
+          if "nomad" in desc_lower:
+            local_app = "Nomad (Investimentos em Dólar)"
+          elif "inter" in desc_lower:
+            local_app = "Banco Inter (CDB Liquidez Diária)"
+          elif "sofisa" in desc_lower:
+            local_app = "Sofisa Direto (CDB 105% CDI)"
+          elif "itaú" in desc_lower or "itau" in desc_lower:
+            local_app = "Banco Itaú"
+          elif "nubank" in desc_lower:
+            local_app = "Nubank (Caixinha / RDB 100% CDI)"
+          elif "tesouro" in desc_lower:
+            local_app = "Tesouro Selic (Tesouro Direto)"
+          else:
+            local_app = descricao.strip() if descricao.strip() else "Banco Itaú"
+
+          cursor.execute(
+              "INSERT INTO desafio_aportes (data, valor, local_aplicacao) VALUES (%s, %s, %s)",
+              (data_lancamento.strip(), valor, local_app),
+          )
+
         conexao.commit()
         cursor.close()
         conexao.close()
-        st.success("Lançamento salvo com sucesso!")
+        st.success("Lançamento salvo e integrado com sucesso!")
         st.rerun()
       except ValueError:
         st.error("Data inválida. Utilize o formato DD/MM/AAAA.")
@@ -245,19 +279,20 @@ else:
   df_lancamentos["comp_ordem"] = "9999-99"
   df_lancamentos["tipo_clean"] = ""
 
-if not df_aportes.empty and "data" in df_aportes.columns:
-  res_ap = df_aportes["data"].apply(extrair_competencia)
-  df_aportes["competencia"] = [x[0] for x in res_ap]
-  df_aportes["valor_num"] = pd.to_numeric(
-      df_aportes["valor"], errors="coerce"
+# Processamento de Aportes da Reserva (Lendo apenas de desafio_aportes para evitar duplicidade)
+if not df_aportes.empty and 'data' in df_aportes.columns:
+  res_ap = df_aportes['data'].apply(extrair_competencia)
+  df_aportes['competencia'] = [x[0] for x in res_ap]
+  df_aportes['valor_num'] = pd.to_numeric(
+      df_aportes['valor'], errors='coerce'
   ).fillna(0.0)
 
   df_aportes_mes = df_aportes[
-      (df_aportes["competencia"] == competencia_selecionada)
-      & (~df_aportes["local_aplicacao"].str.contains("Rendimento", case=False, na=False))
+      (df_aportes['competencia'] == competencia_selecionada)
+      & (~df_aportes['local_aplicacao'].str.contains('Rendimento', case=False, na=False))
   ]
   total_aportes_mes = (
-      df_aportes_mes["valor_num"].sum() if not df_aportes_mes.empty else 0.0
+      df_aportes_mes['valor_num'].sum() if not df_aportes_mes.empty else 0.0
   )
 else:
   total_aportes_mes = 0.0
@@ -287,14 +322,8 @@ total_gastos = (
     else 0.0
 )
 
-total_aportes_lanc = (
-    df_lanc_mes[
-        df_lanc_mes["tipo_clean"].isin(["aporte", "investimento"])
-    ]["valor_num"].sum()
-    if not df_lanc_mes.empty
-    else 0.0
-)
-total_aportes_total = total_aportes_mes + total_aportes_lanc
+# Utiliza diretamente o total de aportes limpo da tabela oficial
+total_aportes_total = total_aportes_mes
 
 saldo_anterior = 0.0
 try:
